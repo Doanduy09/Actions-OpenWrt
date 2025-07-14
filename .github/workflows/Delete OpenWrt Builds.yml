@@ -1,0 +1,81 @@
+# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# Description: Delete OpenWrt build artifacts and releases daily at 0:00 AM Vietnam time
+#
+
+name: Delete OpenWrt Builds
+
+on:
+  schedule:
+    - cron: '0 17 * * *'  # Runs daily at 5 PM UTC (0:00 AM Vietnam time, UTC+7)
+  workflow_dispatch:
+    inputs:
+      delete:
+        description: 'Trigger manual deletion'
+        required: false
+        default: 'true'
+
+jobs:
+  delete-artifacts:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Delete old artifacts
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const artifacts = await github.rest.actions.listArtifactsForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo
+          });
+          
+          const date = new Date();
+          date.setDate(date.getDate() - 1); // Target artifacts from previous day
+          const targetDate = date.toISOString().split('T')[0].replace(/-/g, '');
+          
+          for (const artifact of artifacts.data.artifacts) {
+            if (artifact.name.includes('OpenWrt_firmware') || artifact.name.includes('OpenWrt_bin')) {
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: artifact.id
+              });
+              console.log(`Deleted artifact: ${artifact.name}`);
+            }
+          }
+
+    - name: Delete old releases
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const releases = await github.rest.repos.listReleases({
+            owner: context.repo.owner,
+            repo: context.repo.repo
+          });
+          
+          const date = new Date();
+          date.setDate(date.getDate() - 1); // Target releases from previous day
+          const targetDate = date.toISOString().split('T')[0].replace(/-/g, '');
+          
+          for (const release of releases.data) {
+            if (release.tag_name.includes('immortalwrt24.10-6.6-zyxel_ex5700-telenor_bpi-r3-mini') && release.tag_name.includes(targetDate)) {
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.id
+              });
+              console.log(`Deleted release: ${release.tag_name}`);
+              
+              // Delete the associated tag
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `tags/${release.tag_name}`
+              });
+              console.log(`Deleted tag: ${release.tag_name}`);
+            }
+          }
