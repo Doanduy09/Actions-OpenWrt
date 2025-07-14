@@ -18,7 +18,7 @@ on:
         required: false
         default: 'false'
   schedule:
-    - cron: '0 2 * * *'  # Runs every 2 hours
+    - cron: '0 18 * * *'  # Runs every 2 hours
 
 env:
   REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-6.6
